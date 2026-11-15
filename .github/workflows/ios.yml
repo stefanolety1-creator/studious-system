@@ -10,13 +10,15 @@ on:
 jobs:
   build-ios-app:
     name: Build MsngrApp.app (iOS Simulator) & Run Offline Tests
-    runs-on: macos-14
+    runs-on: macos-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Select Xcode 15.4
-        run: sudo xcode-select -s /Applications/Xcode_15.4.app/Contents/Developer
+      - name: Check Xcode & Swift Version
+        run: |
+          xcodebuild -version
+          swift --version
 
       - name: Run Swift Package Unit & Offline E2E Tests
         run: swift test --parallel
