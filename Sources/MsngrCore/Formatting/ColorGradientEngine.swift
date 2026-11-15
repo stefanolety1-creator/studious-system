@@ -8,7 +8,7 @@ public enum ColorGradientEngine {
         let clampedIndex = min(max(0, index), count - 1)
         let ratio = Float(clampedIndex) / Float(count - 1)
 
-        func channel(shift: Int) -> UInt32 {
+        func channel(_ shift: Int) -> UInt32 {
             let startVal = Float((start >> shift) & 0xFF)
             let endVal = Float((end >> shift) & 0xFF)
             // Truncation toward zero matches native Windows Plus! (.toInt())
