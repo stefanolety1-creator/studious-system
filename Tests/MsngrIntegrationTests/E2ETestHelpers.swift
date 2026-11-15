@@ -29,29 +29,41 @@ public struct AsyncStreamExpectationError: Error, LocalizedError, CustomStringCo
 extension XCTestCase {
     /// Await an event matching a predicate from an AsyncStream with timeout.
     @discardableResult
-    public func expectEvent<T>(
+    public func expectEvent<T: Sendable>(
         from stream: AsyncStream<T>,
         timeout: TimeInterval = TestTimeout.standard,
         description: String = "Waiting for expected stream event",
         matching predicate: @escaping @Sendable (T) -> Bool
     ) async throws -> T {
-        try await withThrowingTaskGroup(of: T.self) { group in
-            group.addTask {
-                for await item in stream {
-                    if predicate(item) {
-                        return item
-                    }
-                }
-                throw AsyncStreamExpectationError("\(description): stream ended without matching event")
-            }
-            group.addTask {
-                try await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
-                throw AsyncStreamExpectationError("\(description): timed out after \(timeout)s")
-            }
-            let result = try await group.next()!
-            group.cancelAll()
-            return result
+        final class Box: @unchecked Sendable {
+            var value: T?
         }
+        let box = Box()
+
+        let consumerTask = Task {
+            for await item in stream {
+                if Task.isCancelled { break }
+                if predicate(item) {
+                    box.value = item
+                    break
+                }
+            }
+        }
+
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if let val = box.value {
+                consumerTask.cancel()
+                return val
+            }
+            try? await Task.sleep(nanoseconds: 30_000_000) // 30ms
+        }
+
+        consumerTask.cancel()
+        if let val = box.value {
+            return val
+        }
+        throw AsyncStreamExpectationError("\(description): timed out after \(timeout)s")
     }
 
     /// Wait for an async condition to evaluate to true within the given timeout.

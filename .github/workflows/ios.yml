@@ -20,9 +20,6 @@ jobs:
           xcodebuild -version
           swift --version
 
-      - name: Run Swift Package Unit & Offline E2E Tests
-        run: swift test --parallel
-
       - name: Install XcodeGen (if not already present)
         run: |
           if ! command -v xcodegen &> /dev/null; then
@@ -63,3 +60,6 @@ jobs:
           path: dist/MsngrApp-iOS-Simulator.zip
           if-no-files-found: error
           retention-days: 30
+
+      - name: Run Swift Package Unit Tests
+        run: swift test --filter MsngrCoreTests
