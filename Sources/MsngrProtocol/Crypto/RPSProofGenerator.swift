@@ -165,6 +165,6 @@ public final class RPSProofGenerator: RPSProofGeneratorProtocol, @unchecked Send
 private extension Data {
     mutating func append(uint32LE val: UInt32) {
         var v = val.littleEndian
-        withUnsafeBytes(of: &v) { self.append(contentsOf: $0) }
+        Swift.withUnsafeBytes(of: &v) { self.append(contentsOf: $0) }
     }
 }
