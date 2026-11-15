@@ -1,0 +1,86 @@
+name: Msngr
+options:
+  bundleIdPrefix: chat.escargot.msngr
+  deploymentTarget:
+    iOS: "16.0"
+  xcodeVersion: "15.4"
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    CODE_SIGN_IDENTITY: ""
+    CODE_SIGNING_REQUIRED: NO
+    CODE_SIGNING_ALLOWED: NO
+    ENABLE_BITCODE: NO
+
+targets:
+  MsngrCore:
+    type: library.static
+    platform: iOS
+    sources:
+      - path: Sources/MsngrCore
+    settings:
+      base:
+        PRODUCT_MODULE_NAME: MsngrCore
+
+  MsngrProtocol:
+    type: library.static
+    platform: iOS
+    sources:
+      - path: Sources/MsngrProtocol
+    dependencies:
+      - target: MsngrCore
+    settings:
+      base:
+        PRODUCT_MODULE_NAME: MsngrProtocol
+
+  MsngrUI:
+    type: library.static
+    platform: iOS
+    sources:
+      - path: Sources/MsngrUI
+    dependencies:
+      - target: MsngrCore
+      - target: MsngrProtocol
+    settings:
+      base:
+        PRODUCT_MODULE_NAME: MsngrUI
+
+  MsngrApp:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources/MsngrApp
+    dependencies:
+      - target: MsngrCore
+      - target: MsngrProtocol
+      - target: MsngrUI
+    info:
+      path: AppConfig/Info.plist
+      properties:
+        CFBundleDisplayName: Messenger
+        CFBundleName: MsngrApp
+        CFBundleShortVersionString: "14.0.8117"
+        CFBundleVersion: "2009"
+        LSRequiresIPhoneOS: true
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: chat.escargot.msngr.ios
+        PRODUCT_NAME: MsngrApp
+        GENERATE_INFOPLIST_FILE: NO
+        TARGETED_DEVICE_FAMILY: "1,2"
