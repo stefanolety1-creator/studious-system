@@ -10,6 +10,9 @@ final class SwitchboardChatE2ETests: XCTestCase {
     var abchServer: MockABCHServer!
     var nsClient: NotificationServerClient!
     var sbSession: SwitchboardSession!
+    var passportClient: PassportRST2Client!
+    var abchClient: ABCHClient!
+    var rpsGenerator: RPSProofGenerator!
 
     var allocatedNsPort: UInt16 = 0
     var allocatedSbPort: UInt16 = 0
@@ -22,6 +25,10 @@ final class SwitchboardChatE2ETests: XCTestCase {
 
         abchServer = MockABCHServer()
         MockSOAPRouter.shared.abchServer = abchServer
+
+        passportClient = PassportRST2Client(endpoint: URL(string: "https://login.live.com/RST.srf")!)
+        abchClient = ABCHClient(endpoint: URL(string: "https://contacts.msn.com/abservice/abservice.asmx")!)
+        rpsGenerator = RPSProofGenerator()
 
         nsServer = MockNotificationServer()
         allocatedNsPort = try await nsServer.start()
@@ -580,11 +587,5 @@ final class SwitchboardChatE2ETests: XCTestCase {
 
         let recorded = await sbServer.getRecordedMessages()
         XCTAssertGreaterThanOrEqual(recorded.count, 10, "High density burst transfer succeeded")
-    }
-}
-
-extension MockNotificationServer {
-    func setSwitchboardPort(_ port: UInt16) {
-        self.switchboardPort = port
     }
 }

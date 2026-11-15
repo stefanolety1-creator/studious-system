@@ -227,10 +227,7 @@ public enum MockABCHFixtures {
                   <ns1:Deleted>false</ns1:Deleted>
                 </ns1:CircleInverseInfo>
               </ns1:Circles>
-              <ns1:CircleTicket>&lt;SignedTicket&gt;
-  &lt;CircleId&gt;00000000-0000-0000-0009-123456789abc&lt;/CircleId&gt;
-  &lt;Signature&gt;MOCK_VALID_SIGNATURE&lt;/Signature&gt;
-&lt;/SignedTicket&gt;</ns1:CircleTicket>
+              <ns1:CircleTicket>&lt;SignedTicket&gt;&lt;CircleId&gt;00000000-0000-0000-0009-123456789abc&lt;/CircleId&gt;&lt;Signature&gt;MOCK_VALID_SIGNATURE&lt;/Signature&gt;&lt;/SignedTicket&gt;</ns1:CircleTicket>
             </ns1:CircleResult>
           </ns1:ABFindContactsPagedResult>
         </ns1:ABFindContactsPagedResponse>

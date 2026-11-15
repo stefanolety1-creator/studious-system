@@ -331,14 +331,14 @@ final class AuthHandshakeE2ETests: XCTestCase {
             return false
         }
 
-        if case .disconnected(let reason) = event {
+        if case .disconnected(let reason) = disconnectEvent {
             XCTAssertEqual(reason, .unexpectedClosure, "Disconnection reason must be unexpectedClosure")
         } else {
             XCTFail("Expected .disconnected(reason: .unexpectedClosure) event, got \(disconnectEvent)")
         }
 
         try await waitForCondition(timeout: TestTimeout.standard, description: "Client isConnected must transition to false") {
-            return nsClient.isConnected == false
+            return self.nsClient.isConnected == false
         }
         XCTAssertFalse(nsClient.isConnected, "nsClient.isConnected must be false after server abrupt disconnect")
     }
