@@ -10,7 +10,7 @@ on:
 jobs:
   build-ios-app:
     name: Build MsngrApp.app (iOS Simulator) & Run Offline Tests
-    runs-on: macos-15
+    runs-on: macos-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
