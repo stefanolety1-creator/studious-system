@@ -1,0 +1,39 @@
+workflows:
+  ios-simulator-build:
+    name: Build MsngrApp (iOS Simulator for Appetize.io)
+    max_build_duration: 30
+    instance_type: mac_mini_m1
+    environment:
+      xcode: latest
+    scripts:
+      - name: Install XcodeGen
+        script: |
+          if ! command -v xcodegen &> /dev/null; then
+            brew install xcodegen
+          fi
+      - name: Generate Xcode Project
+        script: |
+          xcodegen generate
+      - name: Build Universal iOS Simulator .app
+        script: |
+          xcodebuild build \
+            -project Msngr.xcodeproj \
+            -scheme MsngrApp \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -derivedDataPath build/DerivedData \
+            ARCHS="arm64 x86_64" \
+            ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+      - name: Package .app for Appetize.io & Simulator
+        script: |
+          APP_PATH="build/DerivedData/Build/Products/Release-iphonesimulator/MsngrApp.app"
+          mkdir -p dist
+          cp -R "$APP_PATH" dist/MsngrApp.app
+          cd dist
+          ditto -c -k --sequesterRsrc --keepParent MsngrApp.app MsngrApp-iOS-Simulator.zip
+          ls -lh MsngrApp-iOS-Simulator.zip
+    artifacts:
+      - dist/MsngrApp-iOS-Simulator.zip
