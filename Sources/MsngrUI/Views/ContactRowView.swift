@@ -36,7 +36,7 @@ public struct ContactRowView: View {
                     }
 
                     if !contact.statusMessage.isEmpty {
-                        Text("— \(contact.cleanStatusMessage)")
+                        Text("- \(contact.cleanStatusMessage)")
                             .font(.system(size: 12, design: .rounded))
                             .foregroundStyle(Color.wlmTextMuted)
                             .lineLimit(1)

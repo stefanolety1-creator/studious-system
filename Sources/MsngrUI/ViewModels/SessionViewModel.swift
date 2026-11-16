@@ -36,7 +36,7 @@ public final class SessionViewModel: ObservableObject {
     public init(
         account: UserAccount = UserAccount(
             email: "stefano@escargot.chat",
-            displayName: "[c=12]Stefano[/c] 🎵",
+            displayName: "[c=12]Stefano[/c] ??",
             personalMessage: "Windows Live Messenger 2009 on iOS"
         ),
         passportClient: PassportRST2Client = PassportRST2Client(),
@@ -84,7 +84,7 @@ public final class SessionViewModel: ObservableObject {
         currentAccount = UserAccount(
             email: email.isEmpty ? "stefano@escargot.chat" : email,
             displayName: displayName ?? "[b][c=12]Stefano[/c][/b]",
-            personalMessage: "Listening to Daft Punk - Digital Love 🎵",
+            personalMessage: "Listening to Daft Punk - Digital Love ??",
             presence: initialPresence,
             useMockServer: true,
             lastLoginDate: Date()
@@ -98,7 +98,7 @@ public final class SessionViewModel: ObservableObject {
 
         let selin = Contact(
             id: "selin@escargot.chat",
-            nickname: "[c=4]Selin[/c] ✨",
+            nickname: "[c=4]Selin[/c] ?",
             email: "selin@escargot.chat",
             presence: .online,
             statusMessage: "Coding in SwiftUI on macOS & iOS!",
@@ -110,15 +110,15 @@ public final class SessionViewModel: ObservableObject {
             nickname: "Alex [c=3](Gaming)[/c]",
             email: "alex@escargot.chat",
             presence: .busy,
-            statusMessage: "Playing Halo 3 — Do Not Disturb",
+            statusMessage: "Playing Halo 3 - Do Not Disturb",
             groupId: "grp-friends"
         )
         let giulia = Contact(
             id: "giulia@escargot.chat",
-            nickname: "Giulia 🌸",
+            nickname: "Giulia ??",
             email: "giulia@escargot.chat",
             presence: .away,
-            statusMessage: "Out for espresso ☕",
+            statusMessage: "Out for espresso ?",
             groupId: "grp-coworkers"
         )
         let marco = Contact(
@@ -150,39 +150,110 @@ public final class SessionViewModel: ObservableObject {
         MsnSoundPlayer.shared.play(.online)
     }
 
+    public func contacts(for group: ContactGroup) -> [Contact] {
+        filteredContacts.filter { $0.groupId == group.id }
+    }
+
+    public var ungroupedContacts: [Contact] {
+        filteredContacts.filter { c in
+            c.groupId == nil || !groups.contains(where: { $0.id == c.groupId })
+        }
+    }
+
     /// Signs in against a live or local Mock Notification Server + Passport RST2 + ABCH endpoint.
     public func signInLive(email: String, password: String, initialPresence: PresenceStatus = .online) async {
         lastErrorMessage = nil
         networkState = .authenticating
 
         do {
-            let tokens = try await passportClient.authenticate(email: email, password: password)
-            let proof = try rpsGenerator.generateProof(binarySecretBase64: tokens.binarySecretBase64, nonce: "MSNP18-NONCE")
+            let config = currentAccount.serverConfig
+            let authUrl = URL(string: config.authServer) ?? URL(string: "https://ctas.login.ugnet.gay/RST.srf")!
+            let passport = PassportRST2Client(endpoint: authUrl)
+            self.passportClient = passport
 
-            networkState = .connecting
             let client = NotificationServerClient(
-                host: currentAccount.serverConfig.mainServer,
-                port: UInt16(currentAccount.serverConfig.mainPort)
+                host: config.mainServer,
+                port: UInt16(config.mainPort)
             )
             self.nsClient = client
-            try await client.connect()
-            try await client.signIn(email: email, ticket: tokens.messengerClearToken, proof: proof)
+
+            networkState = .connecting
+            let tokens = try await client.fullSignIn(
+                email: email,
+                password: password,
+                config: config,
+                passportClient: passport,
+                rpsGenerator: rpsGenerator
+            )
 
             networkState = .synchronizing
-            let abchResult = try await abchClient.findContacts(ticket: tokens.contactsToken)
-            self.contacts = abchResult.contacts
-            self.groups = abchResult.groups
+            let abchUrl = URL(string: config.addressBookServer) ?? URL(string: "https://ctsvcs.addressbook.ugnet.gay/abservice/abservice.asmx")!
+            let abch = ABCHClient(endpoint: abchUrl)
+            self.abchClient = abch
 
-            let adlRoster = abchResult.contacts.map { ($0.email, $0.isBlocked ? 5 : 3) }
-            try await client.syncAddressBook(contacts: adlRoster)
+            do {
+                let abchResult = try await abch.findContacts(ticket: tokens.contactsToken)
+                self.contacts = abchResult.contacts
+                self.groups = abchResult.groups
+
+                let adlRoster = abchResult.contacts.map { ($0.email, $0.isBlocked ? 5 : 3) }
+                try? await client.syncAddressBook(contacts: adlRoster)
+            } catch {
+                // If ABCH endpoint is unavailable, continue with empty/cached contacts
+            }
+
             try await client.setPresence(initialPresence)
 
             currentAccount.presence = initialPresence
+            currentAccount.email = email
             networkState = .connected
             MsnSoundPlayer.shared.play(.online)
+
+            startListeningToEvents(client: client)
         } catch {
             lastErrorMessage = "Sign-in failed: \(error.localizedDescription)"
             networkState = .disconnected
+        }
+    }
+
+    private func startListeningToEvents(client: NotificationServerClient) {
+        eventTask?.cancel()
+        eventTask = Task { [weak self] in
+            for await event in client.events {
+                guard let self = self else { break }
+                switch event {
+                case .contactPresenceChanged(let email, let status):
+                    if let idx = self.contacts.firstIndex(where: { $0.email.lowercased() == email.lowercased() }) {
+                        self.contacts[idx].presence = status
+                    }
+                case .contactPersonalMessageChanged(let email, let message):
+                    if let idx = self.contacts.firstIndex(where: { $0.email.lowercased() == email.lowercased() }) {
+                        self.contacts[idx].statusMessage = message
+                    }
+                case .switchboardInvitation(let sessionId, let host, let port, let authKey, let inviter):
+                    self.handleIncomingSwitchboard(sessionId: sessionId, host: host, port: port, authKey: authKey, inviter: inviter)
+                case .disconnected:
+                    self.networkState = .disconnected
+                default:
+                    break
+                }
+            }
+        }
+    }
+
+    private func handleIncomingSwitchboard(sessionId: String, host: String, port: UInt16, authKey: String, inviter: String) {
+        Task {
+            let session = SwitchboardSession(host: host, port: port)
+            try? await session.answer(authKey: authKey, sessionId: sessionId, userEmail: self.currentAccount.email)
+            var conv = self.conversations[inviter] ?? Conversation(
+                id: inviter,
+                title: inviter,
+                participantEmails: [inviter],
+                isSwitchboardConnected: true
+            )
+            conv.isSwitchboardConnected = true
+            self.conversations[inviter] = conv
+            MsnSoundPlayer.shared.play(.newAlert)
         }
     }
 

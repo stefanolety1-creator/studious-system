@@ -5,15 +5,23 @@ import MsngrCore
 public struct LoginView: View {
     @ObservedObject public var session: SessionViewModel
 
-    @State private var email: String = "stefano@escargot.chat"
+    @State private var email: String = "stefano@crosstalk.im"
     @State private var password: String = ""
     @State private var selectedPresence: PresenceStatus = .online
     @State private var rememberMe: Bool = true
     @State private var automaticSignIn: Bool = false
     @State private var isServerSettingsPresented: Bool = false
+    @State private var selectedPreset: ServerPreset = .crosstalk
+    @State private var validationError: String?
 
     public init(session: SessionViewModel) {
         self.session = session
+    }
+
+    private var isEmailValid: Bool {
+        let trimmed = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        let pattern = #"^[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,64}$"#
+        return trimmed.range(of: pattern, options: .regularExpression) != nil
     }
 
     public var body: some View {
@@ -57,12 +65,43 @@ public struct LoginView: View {
 
                     // Aero Glass Login Card
                     VStack(alignment: .leading, spacing: 14) {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Windows Live ID:")
+                        // One-Tap Server Preset Switching
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Service:")
                                 .font(.caption.bold())
                                 .foregroundStyle(Color.wlmTextDark)
-                            TextField("name@example.com", text: $email)
+                            Picker("Service Preset", selection: $selectedPreset) {
+                                Text("Crosstalk").tag(ServerPreset.crosstalk)
+                                Text("Escargot").tag(ServerPreset.escargot)
+                                Text("Custom").tag(ServerPreset.custom)
+                            }
+                            .pickerStyle(.segmented)
+                            .onChange(of: selectedPreset) { newPreset in
+                                switch newPreset {
+                                case .crosstalk:
+                                    session.currentAccount.serverConfig = .crosstalk
+                                case .escargot:
+                                    session.currentAccount.serverConfig = .escargot
+                                case .custom:
+                                    isServerSettingsPresented = true
+                                }
+                            }
+                        }
+
+                        // Windows Live ID / Email field (strictly email, not alias/username)
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Windows Live ID (Email):")
+                                .font(.caption.bold())
+                                .foregroundStyle(Color.wlmTextDark)
+                            TextField("user@domain.com", text: $email)
                                 .textFieldStyle(.roundedBorder)
+                                .autocorrectionDisabled()
+                                .textInputAutocapitalization(.never)
+                                .keyboardType(.emailAddress)
+                                .textContentType(.emailAddress)
+                                .onChange(of: email) { _ in
+                                    validationError = nil
+                                }
                         }
 
                         VStack(alignment: .leading, spacing: 6) {
@@ -71,6 +110,7 @@ public struct LoginView: View {
                                 .foregroundStyle(Color.wlmTextDark)
                             SecureField("Enter your password", text: $password)
                                 .textFieldStyle(.roundedBorder)
+                                .textContentType(.password)
                         }
 
                         // Sign-in Status Picker
@@ -97,7 +137,7 @@ public struct LoginView: View {
                             .font(.caption)
                             .foregroundStyle(Color.wlmTextDark)
 
-                        if let err = session.lastErrorMessage {
+                        if let err = validationError ?? session.lastErrorMessage {
                             Text(err)
                                 .font(.caption)
                                 .foregroundStyle(Color.msnBusy)
@@ -107,11 +147,18 @@ public struct LoginView: View {
                         // Action Buttons
                         VStack(spacing: 10) {
                             Button {
+                                let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+                                guard isEmailValid else {
+                                    validationError = "Please enter a valid Windows Live ID email address (e.g. name@domain.com)."
+                                    return
+                                }
+                                validationError = nil
+
                                 Task {
                                     if password.isEmpty {
-                                        session.signInDemoMode(email: email, initialPresence: selectedPresence)
+                                        session.signInDemoMode(email: trimmedEmail, initialPresence: selectedPresence)
                                     } else {
-                                        await session.signInLive(email: email, password: password, initialPresence: selectedPresence)
+                                        await session.signInLive(email: trimmedEmail, password: password, initialPresence: selectedPresence)
                                     }
                                 }
                             } label: {
@@ -128,7 +175,8 @@ public struct LoginView: View {
                             .buttonStyle(.plain)
 
                             Button {
-                                session.signInDemoMode(email: email, initialPresence: selectedPresence)
+                                let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+                                session.signInDemoMode(email: trimmedEmail.isEmpty ? "stefano@crosstalk.im" : trimmedEmail, initialPresence: selectedPresence)
                             } label: {
                                 HStack {
                                     Spacer()
@@ -148,14 +196,14 @@ public struct LoginView: View {
                     .frame(maxWidth: 380)
                     .aeroGlassCard(cornerRadius: 20, fillOpacity: 0.90, borderAlpha: 0.65, sheenAlpha: 0.25)
 
-                    // Server Config Link
+                    // Server Config Link & Preset Indicator
                     Button {
                         isServerSettingsPresented = true
                     } label: {
-                        Label(
-                            "Server: \(session.currentAccount.serverConfig.mainServer):\(session.currentAccount.serverConfig.mainPort)",
-                            systemImage: "server.rack"
-                        )
+                        HStack(spacing: 6) {
+                            Image(systemName: "server.rack")
+                            Text("\(selectedPreset.rawValue): \(session.currentAccount.serverConfig.mainServer):\(session.currentAccount.serverConfig.mainPort)")
+                        }
                         .font(.caption)
                         .foregroundStyle(Color.wlmOnPrimaryContainer)
                     }
@@ -166,6 +214,12 @@ public struct LoginView: View {
         }
         .sheet(isPresented: $isServerSettingsPresented) {
             SettingsView(session: session)
+        }
+        .onAppear {
+            selectedPreset = session.currentAccount.serverConfig.preset
+            if email == "stefano@escargot.chat" {
+                email = "stefano@crosstalk.im"
+            }
         }
     }
 }

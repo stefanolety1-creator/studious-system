@@ -1,6 +1,26 @@
 import Foundation
 import CryptoKit
 
+/// Supported MSNP18 server presets.
+public enum ServerPreset: String, CaseIterable, Identifiable, Codable, Sendable {
+    case crosstalk = "Crosstalk"
+    case escargot = "Escargot"
+    case custom = "Custom"
+
+    public var id: String { rawValue }
+
+    public var displayName: String {
+        switch self {
+        case .crosstalk:
+            return "Crosstalk (Default)"
+        case .escargot:
+            return "Escargot"
+        case .custom:
+            return "Custom"
+        }
+    }
+}
+
 /// Configuration endpoints for MSNP18 Notification Server, SOAP services, and switches.
 public struct ServerConfig: Hashable, Codable, Sendable {
     public var mainServer: String
@@ -12,13 +32,13 @@ public struct ServerConfig: Hashable, Codable, Sendable {
     public var storageServer: String
 
     public init(
-        mainServer: String = "ds.escargot.nina.chat",
+        mainServer: String = "ms.msgrsvcs.ctsrv.gay",
         mainPort: Int = 1863,
-        switchboardPort: Int = 1863,
-        configServer: String = "mconf.escargot.nina.chat",
-        authServer: String = "https://nexus.escargot.chat/RST.srf",
-        addressBookServer: String = "https://contacts.escargot.chat",
-        storageServer: String = "https://storage.escargot.chat"
+        switchboardPort: Int = 1864,
+        configServer: String = "conf.msgrsvcs.ctsrv.gay",
+        authServer: String = "https://ctas.login.ugnet.gay/RST.srf",
+        addressBookServer: String = "https://ctsvcs.addressbook.ugnet.gay/abservice/abservice.asmx",
+        storageServer: String = "https://cts.storage.ugnet.gay/storageservice/SchematizedStore.asmx"
     ) {
         self.mainServer = mainServer
         self.mainPort = mainPort
@@ -29,8 +49,27 @@ public struct ServerConfig: Hashable, Codable, Sendable {
         self.storageServer = storageServer
     }
 
-    /// Standard Escargot community server preset.
-    public static let escargot = ServerConfig()
+    /// Active default community preset (Crosstalk).
+    public static let crosstalk = ServerConfig(
+        mainServer: "ms.msgrsvcs.ctsrv.gay",
+        mainPort: 1863,
+        switchboardPort: 1864,
+        configServer: "conf.msgrsvcs.ctsrv.gay",
+        authServer: "https://ctas.login.ugnet.gay/RST.srf",
+        addressBookServer: "https://ctsvcs.addressbook.ugnet.gay/abservice/abservice.asmx",
+        storageServer: "https://cts.storage.ugnet.gay/storageservice/SchematizedStore.asmx"
+    )
+
+    /// Standard Escargot retro server preset.
+    public static let escargot = ServerConfig(
+        mainServer: "ds.escargot.nina.chat",
+        mainPort: 1863,
+        switchboardPort: 1863,
+        configServer: "mconf.escargot.nina.chat",
+        authServer: "https://nexus.escargot.chat/RST.srf",
+        addressBookServer: "https://contacts.escargot.chat",
+        storageServer: "https://storage.escargot.chat"
+    )
 
     /// Local offline mock server preset for unit and integration testing.
     public static let mock = ServerConfig(
@@ -42,6 +81,64 @@ public struct ServerConfig: Hashable, Codable, Sendable {
         addressBookServer: "http://127.0.0.1:8080/abservice",
         storageServer: "http://127.0.0.1:8080/storage"
     )
+
+    /// Factory for custom server configuration matching SCOPE.md interface contract.
+    public static func custom(
+        host: String,
+        port: Int = 1863,
+        switchboardPort: Int = 1864,
+        authServerUrl: String = ""
+    ) -> ServerConfig {
+        let cleanHost = host.trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "https://", with: "")
+            .replacingOccurrences(of: "http://", with: "")
+        let auth = authServerUrl.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? "https://\(cleanHost)/RST.srf"
+            : authServerUrl.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedAuth = auth.hasPrefix("http://") || auth.hasPrefix("https://") ? auth : "https://\(auth)/RST.srf"
+        return ServerConfig(
+            mainServer: cleanHost,
+            mainPort: port,
+            switchboardPort: switchboardPort,
+            configServer: cleanHost,
+            authServer: resolvedAuth,
+            addressBookServer: "https://\(cleanHost)",
+            storageServer: "https://\(cleanHost)"
+        )
+    }
+
+    /// Evaluates which preset matches this configuration.
+    public var preset: ServerPreset {
+        if mainServer == Self.crosstalk.mainServer &&
+           mainPort == Self.crosstalk.mainPort &&
+           switchboardPort == Self.crosstalk.switchboardPort {
+            return .crosstalk
+        } else if mainServer == Self.escargot.mainServer &&
+                  mainPort == Self.escargot.mainPort {
+            return .escargot
+        } else {
+            return .custom
+        }
+    }
+
+    /// Resolves valid URL for Passport SOAP RST authentication.
+    public var authServerUrl: URL? {
+        let trimmed = authServer.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("http://") || trimmed.hasPrefix("https://") {
+            return URL(string: trimmed)
+        } else if !trimmed.isEmpty {
+            return URL(string: "https://\(trimmed)/RST.srf")
+        }
+        return nil
+    }
+
+    /// Validates endpoint sanity matching Android ServerOverrides.isValid().
+    public var isValid: Bool {
+        !mainServer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        !configServer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        (1...65535).contains(mainPort) &&
+        (1...65535).contains(switchboardPort)
+    }
 }
 
 /// Represents the local authenticated user profile, saved settings, and active session preferences.
@@ -91,7 +188,7 @@ public struct UserAccount: Identifiable, Hashable, Codable, Sendable {
         savedPassword: String? = nil,
         rememberPassword: Bool = false,
         automaticSignIn: Bool = false,
-        serverConfig: ServerConfig = .escargot,
+        serverConfig: ServerConfig = .crosstalk,
         useMockServer: Bool = false,
         lastLoginDate: Date? = nil
     ) {

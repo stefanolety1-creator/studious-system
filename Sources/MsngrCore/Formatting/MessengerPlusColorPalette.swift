@@ -84,7 +84,7 @@ public enum MessengerPlusColorPalette {
         "navy": 0x000080, "maroon": 0x800000, "limegreen": 0x32CD32, "gray": 0x808080
     ]
 
-    /// Lookup a color by palette index (0–67).
+    /// Lookup a color by palette index (0-67).
     public static func paletteColor(index: Int) -> MessengerPlusColorValue? {
         guard index >= 0 && index < palette.count else { return nil }
         return palette[index]
@@ -104,7 +104,7 @@ public enum MessengerPlusColorPalette {
             if let paletteCol = paletteColor(index: index) {
                 return paletteCol
             }
-            // Out-of-range palette IDs 68–99 resolve to black
+            // Out-of-range palette IDs 68-99 resolve to black
             if index <= 99 {
                 return MessengerPlusColorValue(argb: 0xFF000000, wireToken: trimmed)
             }

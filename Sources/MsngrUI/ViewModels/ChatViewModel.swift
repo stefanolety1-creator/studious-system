@@ -85,6 +85,8 @@ public final class ChatViewModel: ObservableObject {
     @Published public var ticTacToe: TicTacToeGameState = TicTacToeGameState()
     @Published public var isTicTacToePresented: Bool = false
     @Published public var isVoiceRecorderPresented: Bool = false
+    @Published public var isWinkPickerPresented: Bool = false
+    @Published public var activeWink: WinkReference? = nil
     @Published public var cooldownErrorMessage: String?
 
     public let shakeEngine = NudgeShakeEngine()
@@ -164,6 +166,39 @@ public final class ChatViewModel: ObservableObject {
         Task {
             await shakeEngine.trigger()
         }
+    }
+
+    /// Sends a classic animated Wink and plays it in the conversation window.
+    public func sendWink(_ wink: WinkReference) {
+        let winkMsg = ChatMessage(
+            contactId: contact.id,
+            author: .me,
+            text: "Sent a wink: \(wink.name)",
+            kind: .wink,
+            wink: wink
+        )
+        messages.append(winkMsg)
+        MsnSoundPlayer.shared.play(.outgoing)
+        activeWink = wink
+
+        Task {
+            // Send wink datacast or custom token over Switchboard
+            try? await switchboardSession?.sendMessage("[WINK:\(wink.id)]", ackMode: .unacknowledged)
+        }
+    }
+
+    /// Handles an incoming Wink from the contact.
+    public func receiveWink(_ wink: WinkReference) {
+        let winkMsg = ChatMessage(
+            contactId: contact.id,
+            author: .contact,
+            text: "Received a wink: \(wink.name)",
+            kind: .wink,
+            wink: wink
+        )
+        messages.append(winkMsg)
+        MsnSoundPlayer.shared.play(.newAlert)
+        activeWink = wink
     }
 
     /// Sends a Tic-Tac-Toe move on the 3x3 board and syncs via `[GAME:TTT:MOVE:N]`.

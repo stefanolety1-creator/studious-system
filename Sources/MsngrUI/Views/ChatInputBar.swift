@@ -91,6 +91,16 @@ public struct ChatInputBar: View {
                 }
                 .buttonStyle(.plain)
 
+                // Winks Button
+                Button {
+                    viewModel.isWinkPickerPresented = true
+                } label: {
+                    Label("Winks", systemImage: "sparkles.tv.fill")
+                        .font(.caption.bold())
+                        .foregroundStyle(Color.wlmSecondary)
+                }
+                .buttonStyle(.plain)
+
                 // Voice Clip (F2) Button
                 Button {
                     viewModel.isVoiceRecorderPresented = true

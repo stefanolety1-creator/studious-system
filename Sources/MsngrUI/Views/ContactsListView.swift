@@ -7,6 +7,8 @@ public struct ContactsListView: View {
 
     @State private var isOnlineExpanded: Bool = true
     @State private var isOfflineExpanded: Bool = true
+    @State private var groupByCategories: Bool = true
+    @State private var collapsedGroupIds: Set<String> = []
     @State private var isSettingsPresented: Bool = false
     @State private var isAddContactPresented: Bool = false
     @State private var newContactEmail: String = ""
@@ -115,6 +117,16 @@ public struct ContactsListView: View {
 
                         // Scene & Settings Toolbar Icons
                         HStack(spacing: 10) {
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.15)) {
+                                    groupByCategories.toggle()
+                                }
+                            } label: {
+                                Image(systemName: groupByCategories ? "rectangle.3.group.fill" : "person.2.fill")
+                                    .foregroundStyle(session.activeScene.isDarkText ? Color.wlmTextDark : Color.white)
+                            }
+                            .buttonStyle(.plain)
+
                             Menu {
                                 ForEach(WlmScene.allCases) { scene in
                                     Button(scene.rawValue) {
@@ -169,78 +181,172 @@ public struct ContactsListView: View {
             }
             .frame(height: 142)
 
-            // Accordion Contact Categories ("Online (N)" & "Offline (M)")
+            // Accordion Contact Categories (Grouped by Category or Online/Offline Status)
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 4) {
-                    // Online Section
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.15)) {
-                            isOnlineExpanded.toggle()
-                        }
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: isOnlineExpanded ? "chevron.down" : "chevron.right")
-                                .font(.caption.bold())
-                                .foregroundStyle(Color.wlmPrimary)
-                            Text("Online (\(session.onlineContacts.count))")
-                                .font(.system(size: 13, weight: .bold, design: .rounded))
-                                .foregroundStyle(Color.wlmOnPrimaryContainer)
-                            Spacer()
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.wlmSurfaceVariant)
-                    }
-                    .buttonStyle(.plain)
+                    if groupByCategories && !session.groups.isEmpty {
+                        // Render defined contact categories / groups
+                        ForEach(session.groups) { group in
+                            let groupContacts = session.contacts(for: group)
+                            let isCollapsed = collapsedGroupIds.contains(group.id)
+                            let onlineCount = groupContacts.filter { $0.presence.isOnline }.count
 
-                    if isOnlineExpanded {
-                        ForEach(session.onlineContacts) { contact in
                             Button {
-                                session.selectedContactId = contact.id
+                                withAnimation(.easeInOut(duration: 0.15)) {
+                                    if isCollapsed {
+                                        collapsedGroupIds.remove(group.id)
+                                    } else {
+                                        collapsedGroupIds.insert(group.id)
+                                    }
+                                }
                             } label: {
-                                ContactRowView(
-                                    contact: contact,
-                                    isSelected: session.selectedContactId == contact.id,
-                                    enableBBCode: session.enableMessengerPlusFormatting
-                                )
+                                HStack(spacing: 6) {
+                                    Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
+                                        .font(.caption.bold())
+                                        .foregroundStyle(Color.wlmPrimary)
+                                    Text("\(group.name) (\(onlineCount)/\(groupContacts.count))")
+                                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                                        .foregroundStyle(Color.wlmOnPrimaryContainer)
+                                    Spacer()
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(Color.wlmSurfaceVariant)
                             }
                             .buttonStyle(.plain)
-                        }
-                    }
 
-                    // Offline Section
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.15)) {
-                            isOfflineExpanded.toggle()
+                            if !isCollapsed {
+                                ForEach(groupContacts) { contact in
+                                    Button {
+                                        session.selectedContactId = contact.id
+                                    } label: {
+                                        ContactRowView(
+                                            contact: contact,
+                                            isSelected: session.selectedContactId == contact.id,
+                                            enableBBCode: session.enableMessengerPlusFormatting
+                                        )
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
                         }
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: isOfflineExpanded ? "chevron.down" : "chevron.right")
-                                .font(.caption.bold())
-                                .foregroundStyle(Color.wlmTextMuted)
-                            Text("Offline (\(session.offlineContacts.count))")
-                                .font(.system(size: 13, weight: .bold, design: .rounded))
-                                .foregroundStyle(Color.wlmTextMuted)
-                            Spacer()
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.wlmSurfaceVariant)
-                    }
-                    .buttonStyle(.plain)
 
-                    if isOfflineExpanded {
-                        ForEach(session.offlineContacts) { contact in
+                        // Ungrouped / Other contacts section
+                        let ungrouped = session.ungroupedContacts
+                        if !ungrouped.isEmpty {
+                            let isCollapsed = collapsedGroupIds.contains("ungrouped")
+                            let onlineCount = ungrouped.filter { $0.presence.isOnline }.count
+
                             Button {
-                                session.selectedContactId = contact.id
+                                withAnimation(.easeInOut(duration: 0.15)) {
+                                    if isCollapsed {
+                                        collapsedGroupIds.remove("ungrouped")
+                                    } else {
+                                        collapsedGroupIds.insert("ungrouped")
+                                    }
+                                }
                             } label: {
-                                ContactRowView(
-                                    contact: contact,
-                                    isSelected: session.selectedContactId == contact.id,
-                                    enableBBCode: session.enableMessengerPlusFormatting
-                                )
+                                HStack(spacing: 6) {
+                                    Image(systemName: isCollapsed ? "chevron.right" : "chevron.down")
+                                        .font(.caption.bold())
+                                        .foregroundStyle(Color.wlmPrimary)
+                                    Text("Other Contacts (\(onlineCount)/\(ungrouped.count))")
+                                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                                        .foregroundStyle(Color.wlmOnPrimaryContainer)
+                                    Spacer()
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(Color.wlmSurfaceVariant)
                             }
                             .buttonStyle(.plain)
+
+                            if !isCollapsed {
+                                ForEach(ungrouped) { contact in
+                                    Button {
+                                        session.selectedContactId = contact.id
+                                    } label: {
+                                        ContactRowView(
+                                            contact: contact,
+                                            isSelected: session.selectedContactId == contact.id,
+                                            enableBBCode: session.enableMessengerPlusFormatting
+                                        )
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                    } else {
+                        // Status View: Online Section
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                isOnlineExpanded.toggle()
+                            }
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: isOnlineExpanded ? "chevron.down" : "chevron.right")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(Color.wlmPrimary)
+                                Text("Online (\(session.onlineContacts.count))")
+                                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                                    .foregroundStyle(Color.wlmOnPrimaryContainer)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color.wlmSurfaceVariant)
+                        }
+                        .buttonStyle(.plain)
+
+                        if isOnlineExpanded {
+                            ForEach(session.onlineContacts) { contact in
+                                Button {
+                                    session.selectedContactId = contact.id
+                                } label: {
+                                    ContactRowView(
+                                        contact: contact,
+                                        isSelected: session.selectedContactId == contact.id,
+                                        enableBBCode: session.enableMessengerPlusFormatting
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+
+                        // Status View: Offline Section
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                isOfflineExpanded.toggle()
+                            }
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: isOfflineExpanded ? "chevron.down" : "chevron.right")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(Color.wlmTextMuted)
+                                Text("Offline (\(session.offlineContacts.count))")
+                                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                                    .foregroundStyle(Color.wlmTextMuted)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Color.wlmSurfaceVariant)
+                        }
+                        .buttonStyle(.plain)
+
+                        if isOfflineExpanded {
+                            ForEach(session.offlineContacts) { contact in
+                                Button {
+                                    session.selectedContactId = contact.id
+                                } label: {
+                                    ContactRowView(
+                                        contact: contact,
+                                        isSelected: session.selectedContactId == contact.id,
+                                        enableBBCode: session.enableMessengerPlusFormatting
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                            }
                         }
                     }
                 }

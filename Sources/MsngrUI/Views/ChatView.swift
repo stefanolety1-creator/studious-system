@@ -116,6 +116,18 @@ public struct ChatView: View {
             ChatInputBar(viewModel: viewModel)
         }
         .offset(x: shakeEngine.offsetX, y: shakeEngine.offsetY)
+        .overlay {
+            if let activeWink = viewModel.activeWink {
+                WinkOverlayView(wink: activeWink) {
+                    viewModel.activeWink = nil
+                }
+            }
+        }
+        .sheet(isPresented: $viewModel.isWinkPickerPresented) {
+            WinkPickerSheet { selectedWink in
+                viewModel.sendWink(selectedWink)
+            }
+        }
         .sheet(isPresented: $viewModel.isTicTacToePresented) {
             TicTacToeView(viewModel: viewModel)
         }
@@ -127,6 +139,40 @@ public struct ChatView: View {
     @ViewBuilder
     private func messageRow(for message: ChatMessage) -> some View {
         switch message.kind {
+        case .wink:
+            HStack(spacing: 10) {
+                Image(systemName: "sparkles.tv.fill")
+                    .font(.title2)
+                    .foregroundStyle(Color.wlmSecondary)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(message.text)
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color.wlmTextDark)
+
+                    if let wink = message.wink {
+                        Button {
+                            viewModel.activeWink = wink
+                        } label: {
+                            Label("Play Wink", systemImage: "play.fill")
+                                .font(.caption.bold())
+                                .foregroundStyle(Color.wlmPrimary)
+                        }
+                        .buttonStyle(.borderless)
+                    }
+                }
+                Spacer()
+            }
+            .padding(10)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(Color.wlmSurfaceVariant)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .strokeBorder(Color.wlmOutline, lineWidth: 1)
+                    )
+            )
+
         case .nudge:
             VStack(alignment: .leading, spacing: 4) {
                 Rectangle()
