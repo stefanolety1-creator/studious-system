@@ -28,7 +28,7 @@ public struct TicTacToeView: View {
                     .font(.title2.bold())
                     .foregroundStyle(Color.wlmPrimary)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("MSN Games - Tic-Tac-Toe")
+                    Text("MSN Games — Tic-Tac-Toe")
                         .font(.system(.headline, design: .rounded))
                         .foregroundStyle(Color.wlmTextDark)
                     Text("Playing with \(viewModel.contact.cleanDisplayName)")

@@ -26,6 +26,11 @@ public actor MockNotificationServer {
     public var failNextChg: Bool = false
     public var failSsoWith911: Bool = false
     public var failAdlWith241: Bool = false
+    public var sessionUserEmail: String = "mock-user@example.com"
+
+    public func setSessionUserEmail(_ email: String) {
+        self.sessionUserEmail = email
+    }
 
     public func setFailSsoWith911(_ fail: Bool) {
         self.failSsoWith911 = fail
@@ -120,6 +125,7 @@ public actor MockNotificationServer {
         listener?.cancel()
         listener = nil
         port = nil
+        sessionUserEmail = "mock-user@example.com"
     }
 
     private func setPort(_ port: UInt16) {
@@ -194,6 +200,9 @@ public actor MockNotificationServer {
 
         case "USR":
             if command.parameters.first == "SSO" && command.parameters.dropFirst().first == "I" {
+                if let email = command.parameters.dropFirst(2).first {
+                    self.sessionUserEmail = email
+                }
                 if let redirect = redirectEndpoint {
                     send("XFR \(trId) NS \(redirect.host):\(redirect.port) 0 \(redirect.host):\(redirect.port)\r\n", on: connection)
                 } else {
@@ -204,8 +213,7 @@ public actor MockNotificationServer {
                 if failSsoWith911 {
                     send("911 \(trId)\r\n", on: connection)
                 } else {
-                    let userEmail = command.parameters.dropFirst(3).first ?? "mock-user@example.com"
-                    send("USR \(trId) OK \(userEmail) 1 0\r\n", on: connection)
+                    send("USR \(trId) OK \(self.sessionUserEmail) 1 0\r\n", on: connection)
                 }
             }
 

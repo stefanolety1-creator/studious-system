@@ -36,7 +36,7 @@ public final class SessionViewModel: ObservableObject {
     public init(
         account: UserAccount = UserAccount(
             email: "stefano@escargot.chat",
-            displayName: "[c=12]Stefano[/c] ??",
+            displayName: "[c=12]Stefano[/c] 🎵",
             personalMessage: "Windows Live Messenger 2009 on iOS"
         ),
         passportClient: PassportRST2Client = PassportRST2Client(),
@@ -84,7 +84,7 @@ public final class SessionViewModel: ObservableObject {
         currentAccount = UserAccount(
             email: email.isEmpty ? "stefano@escargot.chat" : email,
             displayName: displayName ?? "[b][c=12]Stefano[/c][/b]",
-            personalMessage: "Listening to Daft Punk - Digital Love ??",
+            personalMessage: "Listening to Daft Punk - Digital Love 🎵",
             presence: initialPresence,
             useMockServer: true,
             lastLoginDate: Date()
@@ -98,7 +98,7 @@ public final class SessionViewModel: ObservableObject {
 
         let selin = Contact(
             id: "selin@escargot.chat",
-            nickname: "[c=4]Selin[/c] ?",
+            nickname: "[c=4]Selin[/c] ✨",
             email: "selin@escargot.chat",
             presence: .online,
             statusMessage: "Coding in SwiftUI on macOS & iOS!",
@@ -110,15 +110,15 @@ public final class SessionViewModel: ObservableObject {
             nickname: "Alex [c=3](Gaming)[/c]",
             email: "alex@escargot.chat",
             presence: .busy,
-            statusMessage: "Playing Halo 3 - Do Not Disturb",
+            statusMessage: "Playing Halo 3 — Do Not Disturb",
             groupId: "grp-friends"
         )
         let giulia = Contact(
             id: "giulia@escargot.chat",
-            nickname: "Giulia ??",
+            nickname: "Giulia 🌸",
             email: "giulia@escargot.chat",
             presence: .away,
-            statusMessage: "Out for espresso ?",
+            statusMessage: "Out for espresso ☕",
             groupId: "grp-coworkers"
         )
         let marco = Contact(
