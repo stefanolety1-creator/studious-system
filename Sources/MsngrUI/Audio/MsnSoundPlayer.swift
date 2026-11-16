@@ -34,6 +34,7 @@ public enum MsnSoundEffect: String, CaseIterable, Identifiable, Sendable {
     // Static Aliases for backward compatibility
     public static let phone: MsnSoundEffect = .ring
     public static let outgoing: MsnSoundEffect = .callstart
+    public static let callStart: MsnSoundEffect = .callstart
     public static let newAlert: MsnSoundEffect = .newalert
     public static let newEmail: MsnSoundEffect = .newemail
 

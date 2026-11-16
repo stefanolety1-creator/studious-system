@@ -431,7 +431,7 @@ public struct ZipArchiveExtractor {
         // 2. Fallback: zlib raw deflate (windowBits = -15)
         #if canImport(zlib)
         var stream = z_stream()
-        var initStatus = inflateInit2_(&stream, -15, ZLIB_VERSION, Int32(MemoryLayout<z_stream>.size))
+        let initStatus = inflateInit2_(&stream, -15, ZLIB_VERSION, Int32(MemoryLayout<z_stream>.size))
         if initStatus == Z_OK {
             defer { inflateEnd(&stream) }
 
@@ -511,6 +511,7 @@ public extension EnvironmentValues {
     }
 }
 
+@MainActor
 public extension View {
     /// Injects `SkinManager` into the SwiftUI environment as an ObservableObject and environment values.
     func skinEnvironment(_ manager: SkinManager) -> some View {

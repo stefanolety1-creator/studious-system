@@ -554,7 +554,7 @@ public enum WlmUserTile: String, CaseIterable, Identifiable, Codable, Sendable {
             return [Color(hex: 0xFFE4CC), Color(hex: 0xFFB066)]
         case .daisy, .gerberDaisy, .spring:
             return [Color(hex: 0xFFF0F5), Color(hex: 0xFFB6C1)]
-        case .chess, .executive:
+        case .chess, .executive, .robot:
             return [Color(hex: 0xE2E8F0), Color(hex: 0x94A3B8)]
         case .chef:
             return [Color(hex: 0xFEE2E2), Color(hex: 0xF87171)]

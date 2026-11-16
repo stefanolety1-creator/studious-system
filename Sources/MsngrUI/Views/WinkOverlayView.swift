@@ -74,7 +74,7 @@ public struct WinkOverlayView: View {
             .opacity(opacity)
         }
         .onAppear {
-            MsnSoundPlayer.shared.play(.callStart)
+            MsnSoundPlayer.shared.play(.callstart)
             withAnimation(.spring(response: 0.45, dampingFraction: 0.65)) {
                 scale = 1.2
                 opacity = 1.0

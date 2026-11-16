@@ -147,7 +147,7 @@ public struct UserAccount: Identifiable, Hashable, Codable, Sendable {
     public var id: String { storageKey }
 
     /// Normalized passport email address.
-    public let email: String
+    public var email: String
 
     /// Friendly display name.
     public var displayName: String
