@@ -58,6 +58,7 @@ public protocol NotificationServerClientProtocol: Sendable {
     var events: AsyncStream<MsnpServerEvent> { get }
     var onContactPresenceChanged: ((Contact, PresenceStatus) -> Void)? { get set }
     var onGroupListUpdated: (([ContactGroup]) -> Void)? { get set }
+    var logHandler: (@Sendable (String) -> Void)? { get set }
 
     func connect() async throws
     func signIn(email: String, ticket: String, proof: String, machineGuid: String) async throws
@@ -78,6 +79,14 @@ public final class NotificationServerClient: NotificationServerClientProtocol, @
 
     public var onContactPresenceChanged: ((Contact, PresenceStatus) -> Void)?
     public var onGroupListUpdated: (([ContactGroup]) -> Void)?
+    public var logHandler: (@Sendable (String) -> Void)?
+
+    private func logMessage(_ msg: String) {
+        logHandler?(msg)
+        #if DEBUG
+        print("[NS] \(msg)")
+        #endif
+    }
 
     private var connection: NWConnection?
     private let lock = NSLock()
@@ -128,9 +137,16 @@ public final class NotificationServerClient: NotificationServerClientProtocol, @
     }
 
     public func connect() async throws {
-        guard let p = port else { throw NotificationServerError.unexpectedClosure }
+        guard let p = port else {
+            logMessage("? Connection failed: Port is nil")
+            throw NotificationServerError.unexpectedClosure
+        }
+        logMessage("Initiating TCP connection to \(host):\(p)...")
         let nwHost = NWEndpoint.Host(host)
-        let nwPort = NWEndpoint.Port(rawValue: p)!
+        guard let nwPort = NWEndpoint.Port(rawValue: p) else {
+            logMessage("? Connection failed: Invalid port \(p)")
+            throw NotificationServerError.unexpectedClosure
+        }
         let conn = NWConnection(host: nwHost, port: nwPort, using: .tcp)
         self.connection = conn
 
@@ -138,15 +154,38 @@ public final class NotificationServerClient: NotificationServerClientProtocol, @
             let cLock = NSLock()
             var resumed = false
 
+            let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global())
+            timer.schedule(deadline: .now() + 10.0)
+            timer.setEventHandler { [weak self] in
+                cLock.lock()
+                if !resumed {
+                    resumed = true
+                    cLock.unlock()
+                    timer.cancel()
+                    self?.logMessage("? TCP connection timed out after 10s to \(self?.host ?? "server"):\(p)")
+                    conn.cancel()
+                    continuation.resume(throwing: NotificationServerError.timeout)
+                } else {
+                    cLock.unlock()
+                }
+            }
+            timer.resume()
+
             conn.stateUpdateHandler = { [weak self] state in
                 guard let self = self else { return }
                 switch state {
+                case .preparing:
+                    self.logMessage("Connecting... (preparing)")
+                case .waiting(let err):
+                    self.logMessage("?? TCP connection waiting: \(err.localizedDescription)")
                 case .ready:
                     cLock.lock()
                     if !resumed {
                         resumed = true
                         cLock.unlock()
+                        timer.cancel()
                         self.isConnected = true
+                        self.logMessage("? Connected to \(self.host):\(p)!")
                         continuation.resume()
                     } else {
                         cLock.unlock()
@@ -156,16 +195,31 @@ public final class NotificationServerClient: NotificationServerClientProtocol, @
                     if !resumed {
                         resumed = true
                         cLock.unlock()
+                        timer.cancel()
                         self.isConnected = false
+                        self.logMessage("? TCP connection failed: \(err.localizedDescription)")
                         self.failAllPendingContinuations(with: err)
                         continuation.resume(throwing: err)
                     } else {
                         cLock.unlock()
                     }
                 case .cancelled:
-                    self.isConnected = false
-                    self.continuation?.yield(.disconnected(reason: .unexpectedClosure))
-                    self.failAllPendingContinuations(with: NotificationServerError.unexpectedClosure)
+                    cLock.lock()
+                    if !resumed {
+                        resumed = true
+                        cLock.unlock()
+                        timer.cancel()
+                        self.isConnected = false
+                        self.logMessage("TCP connection cancelled")
+                        self.failAllPendingContinuations(with: NotificationServerError.unexpectedClosure)
+                        continuation.resume(throwing: NotificationServerError.unexpectedClosure)
+                    } else {
+                        cLock.unlock()
+                        self.isConnected = false
+                        self.logMessage("TCP connection cancelled")
+                        self.continuation?.yield(.disconnected(reason: .unexpectedClosure))
+                        self.failAllPendingContinuations(with: NotificationServerError.unexpectedClosure)
+                    }
                 default:
                     break
                 }
@@ -177,6 +231,7 @@ public final class NotificationServerClient: NotificationServerClientProtocol, @
     }
 
     public func disconnect() async {
+        logMessage("Closing connection to \(host)...")
         connection?.cancel()
         connection = nil
         isConnected = false
@@ -229,10 +284,13 @@ public final class NotificationServerClient: NotificationServerClientProtocol, @
 
     private func handleFrame(_ frame: MsnpFrame) {
         if let trId = frame.transactionId {
+            logMessage("<< \(frame.verb) \(trId) \(frame.parameters.joined(separator: " "))")
             self.lock.lock()
             let cont = self.pendingTransactionContinuations.removeValue(forKey: trId)
             self.lock.unlock()
             cont?.resume(returning: frame)
+        } else {
+            logMessage("<< \(frame.verb) \(frame.parameters.joined(separator: " "))")
         }
 
         switch frame.verb {
@@ -367,15 +425,32 @@ public final class NotificationServerClient: NotificationServerClientProtocol, @
     }
 
     private func sendTransaction(_ command: String, trId: Int) async throws -> MsnpFrame {
-        try await withCheckedThrowingContinuation { continuation in
+        logMessage(">> \(command)")
+        return try await withCheckedThrowingContinuation { continuation in
             self.lock.lock()
             self.pendingTransactionContinuations[trId] = continuation
             self.lock.unlock()
+
+            let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global())
+            timer.schedule(deadline: .now() + 12.0)
+            timer.setEventHandler { [weak self] in
+                guard let self = self else { return }
+                self.lock.lock()
+                let cont = self.pendingTransactionContinuations.removeValue(forKey: trId)
+                self.lock.unlock()
+                timer.cancel()
+                if let cont = cont {
+                    self.logMessage("? Transaction \(trId) timed out waiting for server response")
+                    cont.resume(throwing: NotificationServerError.timeout)
+                }
+            }
+            timer.resume()
 
             Task {
                 do {
                     try await self.sendRaw("\(command)\r\n")
                 } catch {
+                    timer.cancel()
                     self.lock.lock()
                     _ = self.pendingTransactionContinuations.removeValue(forKey: trId)
                     self.lock.unlock()

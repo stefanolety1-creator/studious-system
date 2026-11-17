@@ -13,6 +13,7 @@ public struct LoginView: View {
     @State private var isServerSettingsPresented: Bool = false
     @State private var selectedPreset: ServerPreset = .crosstalk
     @State private var validationError: String?
+    @State private var hasCopiedLogs: Bool = false
 
     public init(session: SessionViewModel) {
         self.session = session
@@ -189,12 +190,30 @@ public struct LoginView: View {
                                 .aeroGlossyButton(cornerRadius: 20, baseColor: .wlmSecondary, highlightIntensity: 0.35)
                             }
                             .buttonStyle(.plain)
+
+                            if session.networkState == .connecting || session.networkState == .authenticating || session.networkState == .synchronizing {
+                                Button {
+                                    session.signOut()
+                                } label: {
+                                    HStack(spacing: 5) {
+                                        Image(systemName: "xmark.circle")
+                                        Text("Cancel Connection")
+                                    }
+                                    .font(.caption.bold())
+                                    .foregroundStyle(Color.msnBusy)
+                                    .padding(.top, 4)
+                                }
+                                .buttonStyle(.plain)
+                            }
                         }
                         .padding(.top, 6)
                     }
                     .padding(20)
                     .frame(maxWidth: 380)
                     .aeroGlassCard(cornerRadius: 20, fillOpacity: 0.90, borderAlpha: 0.65, sheenAlpha: 0.25)
+
+                    // Real-Time Connection Diagnostics & Protocol Log Console
+                    connectionLogSection
 
                     // Server Config Link & Preset Indicator
                     Button {
@@ -221,5 +240,131 @@ public struct LoginView: View {
                 email = "stefano@crosstalk.im"
             }
         }
+    }
+
+    private var connectionLogSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    session.isLogExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "terminal.fill")
+                        .foregroundStyle(Color.wlmPrimary)
+                    Text("Connection Diagnostics & Log")
+                        .font(.caption.bold())
+                        .foregroundStyle(Color.wlmTextDark)
+                    if !session.connectionLogs.isEmpty {
+                        Text("\(session.connectionLogs.count)")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.wlmPrimary)
+                            .clipShape(Capsule())
+                    }
+                    Spacer()
+                    if session.networkState == .connecting || session.networkState == .authenticating || session.networkState == .synchronizing {
+                        ProgressView()
+                            .scaleEffect(0.7)
+                    }
+                    Image(systemName: session.isLogExpanded ? "chevron.up.circle.fill" : "chevron.down.circle")
+                        .foregroundStyle(Color.wlmOnPrimaryContainer)
+                }
+            }
+            .buttonStyle(.plain)
+
+            if session.isLogExpanded || session.networkState == .connecting || session.networkState == .authenticating {
+                VStack(alignment: .leading, spacing: 8) {
+                    ScrollViewReader { proxy in
+                        ScrollView(.vertical) {
+                            LazyVStack(alignment: .leading, spacing: 4) {
+                                if session.connectionLogs.isEmpty {
+                                    Text("No connection activity yet. Tap 'Sign In' or switch preset to begin.")
+                                        .font(.system(size: 11, design: .monospaced))
+                                        .foregroundStyle(Color.gray)
+                                        .padding(.vertical, 8)
+                                } else {
+                                    ForEach(Array(session.connectionLogs.enumerated()), id: \.offset) { idx, log in
+                                        Text(log)
+                                            .font(.system(size: 11, weight: .regular, design: .monospaced))
+                                            .foregroundStyle(
+                                                log.contains("?") ? Color(red: 1.0, green: 0.45, blue: 0.45) :
+                                                log.contains("?") || log.contains("??") ? Color(red: 0.4, green: 0.95, blue: 0.5) :
+                                                log.contains("??") || log.contains("??") ? Color(red: 1.0, green: 0.85, blue: 0.3) :
+                                                log.contains(">>") ? Color(red: 0.5, green: 0.8, blue: 1.0) :
+                                                log.contains("<<") ? Color(red: 0.8, green: 0.6, blue: 1.0) :
+                                                Color.white.opacity(0.92)
+                                            )
+                                            .textSelection(.enabled)
+                                            .id(idx)
+                                    }
+                                }
+                            }
+                            .padding(10)
+                        }
+                        .frame(minHeight: 110, maxHeight: 180)
+                        .background(Color(red: 0.08, green: 0.12, blue: 0.18).opacity(0.92))
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .stroke(Color.white.opacity(0.25), lineWidth: 1)
+                        )
+                        .onChange(of: session.connectionLogs.count) { _ in
+                            if let last = session.connectionLogs.indices.last {
+                                withAnimation {
+                                    proxy.scrollTo(last, anchor: .bottom)
+                                }
+                            }
+                        }
+                    }
+
+                    HStack(spacing: 8) {
+                        Button {
+                            UIPasteboard.general.string = session.connectionLogs.joined(separator: "\n")
+                            hasCopiedLogs = true
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                                hasCopiedLogs = false
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: hasCopiedLogs ? "checkmark.circle.fill" : "doc.on.doc")
+                                Text(hasCopiedLogs ? "Copied!" : "Copy Log")
+                            }
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Color.wlmPrimary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Color.white.opacity(0.85))
+                            .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+
+                        Button {
+                            session.clearLogs()
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "trash")
+                                Text("Clear")
+                            }
+                            .font(.system(size: 11, weight: .regular))
+                            .foregroundStyle(Color.wlmTextDark)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Color.white.opacity(0.55))
+                            .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+
+                        Spacer()
+                    }
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: 380)
+        .aeroGlassCard(cornerRadius: 16, fillOpacity: 0.88, borderAlpha: 0.60, sheenAlpha: 0.20)
     }
 }

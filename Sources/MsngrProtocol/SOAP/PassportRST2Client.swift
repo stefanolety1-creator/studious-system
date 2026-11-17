@@ -50,6 +50,14 @@ public final class PassportRST2Client: PassportRST2ClientProtocol, @unchecked Se
     public let endpoint: URL
     private let session: URLSession
     public private(set) var lastFaultString: String?
+    public var logHandler: (@Sendable (String) -> Void)?
+
+    private func logMessage(_ msg: String) {
+        logHandler?(msg)
+        #if DEBUG
+        print("[Passport] \(msg)")
+        #endif
+    }
 
     public init(
         endpoint: URL = ServerConfig.crosstalk.authServerUrl ?? URL(string: "https://ctas.login.ugnet.gay/RST.srf")!,
@@ -138,24 +146,31 @@ public final class PassportRST2Client: PassportRST2ClientProtocol, @unchecked Se
         req.setValue("MSNMSGR/14.0.8117.0416", forHTTPHeaderField: "User-Agent")
         req.httpBody = Data(soapXml.utf8)
 
+        logMessage("Connecting to Passport RST2 at \(endpoint.absoluteString)...")
         let (data, response) = try await session.data(for: req)
         guard let httpResponse = response as? HTTPURLResponse else {
+            logMessage("? Passport network error: Invalid HTTP response")
             throw PassportError.networkError("Invalid HTTP response")
         }
 
+        logMessage("Passport server responded with HTTP \(httpResponse.statusCode)")
         let responseXml = String(data: data, encoding: .utf8) ?? ""
         if httpResponse.statusCode != 200 || responseXml.contains("<faultstring>") || responseXml.contains("<Fault>") {
             self.lastFaultString = extractTagIgnoringNamespace(responseXml, localName: "faultstring")
                 ?? extractTagIgnoringNamespace(responseXml, localName: "detail")
                 ?? "Authentication failed"
+            logMessage("? Passport fault: \(self.lastFaultString ?? "Unknown error")")
             throw PassportError.authenticationFailed
         }
 
         guard responseXml.contains("<Envelope") && responseXml.contains("</Envelope>") else {
+            logMessage("? Passport malformed XML envelope")
             throw PassportError.malformedXmlResponse
         }
 
-        return try parseSecurityTokens(from: responseXml)
+        let tokens = try parseSecurityTokens(from: responseXml)
+        logMessage("? Passport security tokens retrieved successfully")
+        return tokens
     }
 
     private func extractTagIgnoringNamespace(_ xml: String, localName: String) -> String? {

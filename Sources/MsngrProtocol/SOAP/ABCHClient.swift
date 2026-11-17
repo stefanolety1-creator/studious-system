@@ -47,6 +47,14 @@ public final class ABCHClient: @unchecked Sendable {
 
     public let endpoint: URL
     private let session: URLSession
+    public var logHandler: (@Sendable (String) -> Void)?
+
+    private func logMessage(_ msg: String) {
+        logHandler?(msg)
+        #if DEBUG
+        print("[ABCH] \(msg)")
+        #endif
+    }
 
     public init(
         endpoint: URL = URL(string: "https://contacts.msn.com/abservice/abservice.asmx")!,
@@ -57,6 +65,7 @@ public final class ABCHClient: @unchecked Sendable {
     }
 
     public func findContacts(ticket: String) async throws -> ABFindContactsResult {
+        logMessage("Fetching contacts from ABCH service at \(endpoint.absoluteString)...")
         let soap = SOAPXmlBuilder.buildABFindContactsPaged(ticket: ticket)
 
         var req = URLRequest(url: endpoint)
@@ -66,11 +75,14 @@ public final class ABCHClient: @unchecked Sendable {
 
         let (data, response) = try await session.data(for: req)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            logMessage("? ABCH request failed with status: \((response as? HTTPURLResponse)?.statusCode ?? -1)")
             throw AddressBookError.serviceFault("Failed to fetch address book")
         }
 
         let xml = String(data: data, encoding: .utf8) ?? ""
-        return parseContactsResult(from: xml)
+        let result = parseContactsResult(from: xml)
+        logMessage("? ABCH returned \(result.contacts.count) contacts and \(result.groups.count) groups")
+        return result
     }
 
     public func findMembership(ticket: String, role: MemberRole) async throws -> [ABMember] {
