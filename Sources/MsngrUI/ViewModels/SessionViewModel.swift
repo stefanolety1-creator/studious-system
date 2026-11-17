@@ -162,12 +162,13 @@ public final class SessionViewModel: ObservableObject {
         }
     }
 
-    public func addLog(_ message: String) {
+    public nonisolated func addLog(_ message: String) {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm:ss"
         let timestamp = formatter.string(from: Date())
         let line = "[\(timestamp)] \(message)"
-        Task { @MainActor in
+        Task { @MainActor [weak self] in
+            guard let self = self else { return }
             self.connectionLogs.append(line)
             if self.connectionLogs.count > 250 {
                 self.connectionLogs.removeFirst(self.connectionLogs.count - 250)

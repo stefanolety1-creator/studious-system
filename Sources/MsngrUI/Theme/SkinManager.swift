@@ -512,6 +512,7 @@ public extension EnvironmentValues {
 }
 
 @MainActor
+@MainActor
 public extension View {
     /// Injects `SkinManager` into the SwiftUI environment as an ObservableObject and environment values.
     func skinEnvironment(_ manager: SkinManager) -> some View {
